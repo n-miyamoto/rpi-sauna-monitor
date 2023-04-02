@@ -4,6 +4,18 @@ use ambient_rust::{Ambient, AmbientPayload};
 
 mod secrets;
 
+fn is_rpi() -> bool {
+    if !cfg!(target_arch="arm") {
+        return false;
+    }else if !cfg!(target_os = "linux") {
+        return false;
+    }else if !cfg!(target_env= "gnu") {
+        return false;
+    }
+
+    true
+}
+
 #[derive(Debug)]
 enum SensorError{
     NotFound,
@@ -22,9 +34,7 @@ impl SHT30{
 
     fn init () -> SHT30 {
         //non-raspi case
-        if !cfg!(arm) || !cfg!(linux) {
-            return SHT30 { i2c: None, };
-        };
+        if !is_rpi() {return SHT30 { i2c: None, };};
 
         let mut i2c = I2c::new().unwrap();
         i2c.set_slave_address(SHT30_ADDR).unwrap(); 
@@ -40,7 +50,7 @@ impl SHT30{
 
     fn read_temperture(&mut self) -> Result<f64, SensorError> {
         //non-raspi case
-        if !cfg!(arm) || !cfg!(linux) {
+        if !is_rpi() {
             return Ok(12.3); //dummy data
         };
 
@@ -55,7 +65,7 @@ impl SHT30{
 
     fn read_humidity(&mut self) -> Result<f64, SensorError> {
         //non-raspi case
-        if !cfg!(arm) || !cfg!(linux) {
+        if !is_rpi() {
             return Ok(45.6); //dummy data
         };
 
@@ -132,6 +142,11 @@ fn run(sauna_monitor : &mut SaunaMonitor){
 
 fn main() {
     println!("rpi-sauna-monitor\nHello, world!");
+    if is_rpi() {
+        println!("target is raspberry pi!!!");
+    }else {
+        println!("target is not raspberry pi. send dummy data.");
+    }
 
     let interval_ms = 5_000;
     let sleep_time = time::Duration::from_millis(interval_ms);
