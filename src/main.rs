@@ -10,25 +10,62 @@ enum SensorError{
 }
 
 struct SHT30 {
-    i2c_address : u32, 
+    i2c : Option<I2c>,
 }
 
+const SHT30_ADDR : u16 = 0x44;
+const SHT30_MODE : u8 = 0x2C;
+const SHT30_HIGH : u8 = 0x06;
+const SHT30_READ : u8 = 0x00;
+
 impl SHT30{
+
     fn init () -> SHT30 {
-        // TODO : init i2c using rppal, SHT30 sensor.
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return SHT30 { i2c: None, };
+        };
+
+        let mut i2c = I2c::new().unwrap();
+        i2c.set_slave_address(SHT30_ADDR).unwrap(); 
+        i2c.block_write(
+            SHT30_MODE as u8,
+            &[SHT30_HIGH as u8],
+        ).unwrap();
+
         SHT30 {
-            i2c_address : 44,
+            i2c : Some(i2c),
         }
     }
 
-    fn read_temperture(&self) -> Result<f64, SensorError> {
-        // TODO : read STH30 sensor temperture data and return value
-        Ok(12.34)
+    fn read_temperture(&mut self) -> Result<f64, SensorError> {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return Ok(12.3); //dummy data
+        };
+
+        // read sensor.
+        let mut reg = [0u8; 6];
+        self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
+
+        let temp : u16 = (reg[0] as u16) << 8 | reg[1] as u16;
+        let temp : f64 = -45.0 + 175.0 * (temp as f64) / 65535.0 ;
+        Ok(temp)
     }
 
-    fn read_humidity(&self) -> Result<f64, SensorError> {
-        // TODO : read STH30 sensor humidity data and return value
-        Ok(56.78)
+    fn read_humidity(&mut self) -> Result<f64, SensorError> {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return Ok(45.6); //dummy data
+        };
+
+        // read sensor.
+        let mut reg = [0u8; 6];
+        self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
+
+        let humid : u16 = (reg[3] as u16) << 8 | reg[4] as u16;
+        let humid : f64 = 100.0 * humid as f64 / 65535.0;
+        Ok(humid)
     }
 }
 
@@ -43,18 +80,29 @@ struct DS18B20{
 }
 impl DS18B20{
     fn init() -> DS18B20 {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return DS18B20{ onewire_address: 28};
+        };
 
+        // TODO: initialize one-wire
+        // TODO: initialize DS18B20 sensor
         DS18B20 {
             onewire_address : 28,
         }
     }
 
     fn read_temperture(&self) -> Result<f64, SensorError> {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return Ok(90.12);
+        };
+
         Ok(90.12)
     }
 }
 
-fn run(sauna_monitor : &SaunaMonitor){
+fn run(sauna_monitor : &mut SaunaMonitor){
     let payload = AmbientPayload {
         //created: Some(Utc::now()), Persing chrono::DataTime is not supported yes.
         created: None,
@@ -85,18 +133,17 @@ fn run(sauna_monitor : &SaunaMonitor){
 fn main() {
     println!("rpi-sauna-monitor\nHello, world!");
 
-    let interval_ms = 1_000;
+    let interval_ms = 5_000;
     let sleep_time = time::Duration::from_millis(interval_ms);
-    let sm = SaunaMonitor {
+    let mut sm = SaunaMonitor {
         sht30 : SHT30::init(),
         ds18b : DS18B20::init(),
         ambient: Ambient::new(secrets::ambient::CHANNEL_ID, String::from(secrets::ambient::WRITE_KEY)),
     };
 
     loop {
-        run(&sm);
+        run(&mut sm);
 
         thread::sleep(sleep_time);
     }
-
 }
