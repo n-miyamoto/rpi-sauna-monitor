@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 rppal = "0.14.1"
+ambient-rust = { git = "https://github.com/n-miyamoto/ambient-rust" }
 
