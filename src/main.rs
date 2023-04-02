@@ -12,7 +12,6 @@ fn is_rpi() -> bool {
     }else if !cfg!(target_env= "gnu") {
         return false;
     }
-
     true
 }
 
@@ -29,6 +28,7 @@ const SHT30_ADDR : u16 = 0x44;
 const SHT30_MODE : u8 = 0x2C;
 const SHT30_HIGH : u8 = 0x06;
 const SHT30_READ : u8 = 0x00;
+const SHT30_WAIT_TIME_MS: u64 = 200;
 
 impl SHT30{
 
@@ -42,6 +42,8 @@ impl SHT30{
             SHT30_MODE as u8,
             &[SHT30_HIGH as u8],
         ).unwrap();
+        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        thread::sleep(wait_time_ms);
 
         SHT30 {
             i2c : Some(i2c),
@@ -58,6 +60,10 @@ impl SHT30{
         let mut reg = [0u8; 6];
         self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
 
+        // sleep
+        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        thread::sleep(wait_time_ms);
+
         let temp : u16 = (reg[0] as u16) << 8 | reg[1] as u16;
         let temp : f64 = -45.0 + 175.0 * (temp as f64) / 65535.0 ;
         Ok(temp)
@@ -72,6 +78,10 @@ impl SHT30{
         // read sensor.
         let mut reg = [0u8; 6];
         self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
+
+        //sleep
+        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        thread::sleep(wait_time_ms);
 
         let humid : u16 = (reg[3] as u16) << 8 | reg[4] as u16;
         let humid : f64 = 100.0 * humid as f64 / 65535.0;
