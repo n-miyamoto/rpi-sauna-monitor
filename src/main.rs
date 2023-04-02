@@ -38,12 +38,6 @@ impl SHT30{
 
         let mut i2c = I2c::new().unwrap();
         i2c.set_slave_address(SHT30_ADDR).unwrap(); 
-        i2c.block_write(
-            SHT30_MODE as u8,
-            &[SHT30_HIGH as u8],
-        ).unwrap();
-        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
-        thread::sleep(wait_time_ms);
 
         SHT30 {
             i2c : Some(i2c),
@@ -57,11 +51,15 @@ impl SHT30{
         };
 
         // read sensor.
+        self.i2c.as_mut().unwrap().block_write(
+            SHT30_MODE as u8,
+            &[SHT30_HIGH as u8],
+        ).unwrap();
+        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        thread::sleep(wait_time_ms);
+
         let mut reg = [0u8; 6];
         self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
-
-        // sleep
-        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
         thread::sleep(wait_time_ms);
 
         let temp : u16 = (reg[0] as u16) << 8 | reg[1] as u16;
@@ -76,11 +74,15 @@ impl SHT30{
         };
 
         // read sensor.
+        self.i2c.as_mut().unwrap().block_write(
+            SHT30_MODE as u8,
+            &[SHT30_HIGH as u8],
+        ).unwrap();
+        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        thread::sleep(wait_time_ms);
+
         let mut reg = [0u8; 6];
         self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
-
-        //sleep
-        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
         thread::sleep(wait_time_ms);
 
         let humid : u16 = (reg[3] as u16) << 8 | reg[4] as u16;
@@ -128,7 +130,8 @@ fn run(sauna_monitor : &mut SaunaMonitor){
         created: None,
         d1: Some(sauna_monitor.ds18b.read_temperture().unwrap()),
         d2: Some(sauna_monitor.sht30.read_temperture().unwrap()),
-        d3: Some(sauna_monitor.sht30.read_humidity().unwrap()),
+        //d3: Some(sauna_monitor.sht30.read_humidity().unwrap()),
+        d3: None,
         d4: None,
         d5: None,
         d6: None,
