@@ -3,6 +3,8 @@ use std::{thread, time};
 use ambient_rust::{Ambient, AmbientPayload};
 
 mod secrets;
+pub mod onewire;
+use onewire::OneWire;
 
 fn is_rpi() -> bool {
     if !cfg!(target_arch="arm") {
@@ -91,38 +93,59 @@ impl SHT30{
     }
 }
 
+struct DS18B20{
+    onewire_address : u64,
+    onewire : Option<OneWire>,
+}
+impl DS18B20{
+    fn init() -> DS18B20 {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return DS18B20{ 
+                onewire_address: 28,
+                onewire : None,
+            };
+        };
+
+        const onewire_address :u64 = 28;
+        match OneWire::search() {
+            Some(x) => {
+                if x!=onewire_address {
+                    panic!("sensor not found!");
+                }
+            },
+            None => {
+                panic!("sensor not found!");
+            }
+        };
+
+        DS18B20 {
+            onewire_address : onewire_address,
+            onewire : Some(OneWire::new(onewire_address)),
+        }
+    }
+
+    fn read_temperture(&mut self) -> Result<f64, SensorError> {
+        //non-raspi case
+        if !cfg!(arm) || !cfg!(linux) {
+            return Ok(90.12);
+        };
+
+
+        let mut data = [0u8; 8];
+        self.onewire.as_mut().unwrap().read(&mut data);
+
+        Ok(90.12)
+    }
+}
+
 struct SaunaMonitor{
     sht30: SHT30,
     ds18b: DS18B20,
     ambient: Ambient,
 }
 
-struct DS18B20{
-    onewire_address : u64,
-}
-impl DS18B20{
-    fn init() -> DS18B20 {
-        //non-raspi case
-        if !cfg!(arm) || !cfg!(linux) {
-            return DS18B20{ onewire_address: 28};
-        };
 
-        // TODO: initialize one-wire
-        // TODO: initialize DS18B20 sensor
-        DS18B20 {
-            onewire_address : 28,
-        }
-    }
-
-    fn read_temperture(&self) -> Result<f64, SensorError> {
-        //non-raspi case
-        if !cfg!(arm) || !cfg!(linux) {
-            return Ok(90.12);
-        };
-
-        Ok(90.12)
-    }
-}
 
 fn run(sauna_monitor : &mut SaunaMonitor){
     let payload = AmbientPayload {
