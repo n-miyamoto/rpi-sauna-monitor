@@ -171,7 +171,6 @@ impl DS18B20{
         let integer = integer_str.parse::<i32>().expect("Failed to parse integer");
 
         // Print integer value
-        println!("{}", integer);
 
         Ok((integer as f64) / 1000.0)
     }
@@ -196,7 +195,7 @@ fn run(sauna_monitor : &mut SaunaMonitor){
     let response = sauna_monitor.ambient.send(&payload, None);
     match &response{
         Ok(res) =>  {
-            println!("{:?}", res.status());
+            println!("Http status code : {:?}", res.status());
         },
         Err(error) => {
             panic!("Http post failled.: {:?}", error);
