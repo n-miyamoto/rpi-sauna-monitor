@@ -1,25 +1,24 @@
-use rppal::i2c::I2c;
-use std::error::Error;
-use std::{thread, time};
-use ambient_rust::{Ambient, AmbientPayload};
-use std::path::{Path, PathBuf};
+use std::thread;
+use std::time;
+use std::path::PathBuf;
 use std::io::{BufRead, BufReader};
 use std::fs;
 
+use ambient_rust::{Ambient, AmbientPayload};
+use rppal::i2c::I2c;
 
 mod secrets;
 
 fn is_rpi() -> bool {
-    if !cfg!(target_arch="arm") {
-        return false;
-    }else if !cfg!(target_os = "linux") {
-        return false;
-    }else if !cfg!(target_env= "gnu") {
-        return false;
+    if cfg!(target_arch="arm") && 
+       cfg!(target_os="linux") &&
+       cfg!(target_env="gnu")
+    {
+        true
+    }else{
+        false
     }
-    true
 }
-
 
 fn find_dir_with_prefix(root_dir: &str, prefix: u32) -> Option<PathBuf> {
     let mut stack = vec![PathBuf::from(root_dir)];
@@ -61,22 +60,19 @@ struct SHT30 {
     i2c : Option<I2c>,
 }
 
-
-
-const SHT30_ADDR : u16 = 0x44;
-const SHT30_MODE : u8 = 0x2C;
-const SHT30_HIGH : u8 = 0x06;
-const SHT30_READ : u8 = 0x00;
-const SHT30_WAIT_TIME_MS: u64 = 200;
-
 impl SHT30{
+    const ADDR : u16 = 0x44;
+    const MODE : u8 = 0x2C;
+    const HIGH : u8 = 0x06;
+    const READ : u8 = 0x00;
+    const WAIT_TIME_MS: u64 = 200;
 
     fn init () -> SHT30 {
         //non-raspi case
         if !is_rpi() {return SHT30 { i2c: None, };};
 
         let mut i2c = I2c::new().unwrap();
-        i2c.set_slave_address(SHT30_ADDR).unwrap(); 
+        i2c.set_slave_address(SHT30::ADDR).unwrap(); 
 
         SHT30 {
             i2c : Some(i2c),
@@ -91,14 +87,14 @@ impl SHT30{
 
         // read sensor.
         self.i2c.as_mut().unwrap().block_write(
-            SHT30_MODE as u8,
-            &[SHT30_HIGH as u8],
+            SHT30::MODE as u8,
+            &[SHT30::HIGH as u8],
         ).unwrap();
-        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        let wait_time_ms = time::Duration::from_millis(SHT30::WAIT_TIME_MS);
         thread::sleep(wait_time_ms);
 
         let mut reg = [0u8; 6];
-        self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
+        self.i2c.as_mut().unwrap().block_read(SHT30::READ, &mut reg).unwrap();
         thread::sleep(wait_time_ms);
 
         let temp : u16 = (reg[0] as u16) << 8 | reg[1] as u16;
@@ -114,14 +110,14 @@ impl SHT30{
 
         // read sensor.
         self.i2c.as_mut().unwrap().block_write(
-            SHT30_MODE as u8,
-            &[SHT30_HIGH as u8],
+            SHT30::MODE as u8,
+            &[SHT30::HIGH as u8],
         ).unwrap();
-        let wait_time_ms = time::Duration::from_millis(SHT30_WAIT_TIME_MS);
+        let wait_time_ms = time::Duration::from_millis(SHT30::WAIT_TIME_MS);
         thread::sleep(wait_time_ms);
 
         let mut reg = [0u8; 6];
-        self.i2c.as_mut().unwrap().block_read(SHT30_READ, &mut reg).unwrap();
+        self.i2c.as_mut().unwrap().block_read(SHT30::READ, &mut reg).unwrap();
         thread::sleep(wait_time_ms);
 
         let humid : u16 = (reg[3] as u16) << 8 | reg[4] as u16;
@@ -137,7 +133,6 @@ struct SaunaMonitor{
 }
 
 struct DS18B20{
-    onewire_address : u32,
     sensor_path: PathBuf,
 }
 
@@ -154,7 +149,6 @@ impl DS18B20{
             Some(path) => {
                 println!("{}", path.display());
                 Ok( DS18B20{
-                    onewire_address: onewire_address,
                     sensor_path: path,
                 })
             }
