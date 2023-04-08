@@ -21,26 +21,21 @@ fn is_rpi() -> bool {
 }
 
 fn find_dir_with_prefix(root_dir: &str, prefix: u32) -> Option<PathBuf> {
-    let mut stack = vec![PathBuf::from(root_dir)];
 
-    while let Some(dir) = stack.pop() {
-        if let Ok(entries) = fs::read_dir(&dir) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
+    if let Ok(entries) = fs::read_dir(&root_dir) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
 
-                    if path.is_dir() {
-                        if let Some(file_name) = path.file_name() {
-                            if let Some((num_str, _)) = file_name.to_str().unwrap().split_once('-') {
-                                if let Ok(num) = num_str.parse::<u32>() {
-                                    if num == prefix {
-                                        return Some(path.clone());
-                                    }
+                if path.is_dir() {
+                    if let Some(file_name) = path.file_name() {
+                        if let Some((num_str, _)) = file_name.to_str().unwrap().split_once('-') {
+                            if let Ok(num) = num_str.parse::<u32>() {
+                                if num == prefix {
+                                    return Some(path.clone());
                                 }
                             }
                         }
-
-                        stack.push(path);
                     }
                 }
             }
