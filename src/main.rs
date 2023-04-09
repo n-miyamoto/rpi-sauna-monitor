@@ -184,13 +184,13 @@ pub fn config_env_var(name: &str) -> Result<String, String> {
     std::env::var(name).map_err(|e| format!("{}: {}", name, e))
 }
 
-async fn post_slack_message() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn post_slack_start_message() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = SlackClient::new(SlackClientHyperConnector::new());
     let token_value: SlackApiTokenValue = config_env_var("SLACK_TEST_TOKEN")?.into();
     let token: SlackApiToken = SlackApiToken::new(token_value);
     let session = client.open_session(&token);
 
-    let message = WelcomeMessageTemplateParams::new("hirosi".into());
+    let message = WelcomeMessageTemplateParams::new("sauna-monitor".into());
 
     let post_chat_req =
         SlackApiChatPostMessageRequest::new("#sauna".into(), message.render_template());
@@ -215,37 +215,36 @@ impl SlackMessageTemplate for WelcomeMessageTemplateParams {
                 some_into(SlackHeaderBlock::new(pt!("RPi Sauna Monitor"))),
                 some_into(
                     SlackSectionBlock::new()
-                        .with_text(md!("Hey {} rpi sauna nomitor started working.", self.user_id.to_slack_format()))
+                        .with_text(md!("Hey {} rpi sauna nomitor started working. url: https://ambidata.io/bd/board.html?id=18138", self.user_id.to_slack_format()))
                 )
-                //some_into(SlackDividerBlock::new()),
-                //some_into(SlackDividerBlock::new()),
-                //some_into(SlackContextBlock::new(slack_blocks![
-                //    some(md!("This is an example of block message")),
-                //    some(md!(
-                //        "Current time is: {}",
-                //        fmt_slack_date(
-                //            &Local::now(),
-                //            SlackDateTimeFormats::DatePretty.to_string().as_str(),
-                //            None
-                //        )
-                //    ))
-                //])),
-                //some_into(SlackDividerBlock::new()),
-                //some_into(
-                //    SlackImageBlock::new(
-                //        Url::parse("https://www.gstatic.com/webp/gallery3/2_webp_ll.png").unwrap(),
-                //        "Test Image".into(),
-                //    )
-                //    .with_title("Test Image".into())
-                //),
-                //some_into(SlackActionsBlock::new(slack_blocks![some_into(
-                //    SlackBlockButtonElement::new(
-                //        "simple-message-button".into(),
-                //        pt!("Simple button text")
-                //    )
-                //)]))
             ])
     }
+}
+
+async fn post_slack_simple_message(msg: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = SlackClient::new(SlackClientHyperConnector::new());
+    let token_value: SlackApiTokenValue = config_env_var("SLACK_TEST_TOKEN")?.into();
+    let token: SlackApiToken = SlackApiToken::new(token_value);
+    let session = client.open_session(&token);
+
+    let id : SlackUserId = "sauna-monitor".into();
+    let message = SlackMessageContent::new()
+            .with_text(format!("Hey {}", id.to_slack_format()))
+            .with_blocks(slack_blocks![
+                some_into(
+                    SlackSectionBlock::new()
+                        .with_text(md!("{}", msg))
+                )
+            ]);
+
+    let post_chat_req =
+        SlackApiChatPostMessageRequest::new("#sauna".into(), message);
+
+    let post_chat_resp = session.chat_post_message(&post_chat_req).await?;
+    //let res = block_on(post_chat_resp);
+    println!("post chat resp: {:#?}", &post_chat_resp);
+
+    Ok(())
 }
 
 async fn run(sauna_monitor : &mut SaunaMonitor) {
@@ -262,11 +261,16 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
         d8: None,
     };
 
-    println!("{:?}", payload);
+    let formatted_payload = format!("water temp: {:>4}, sauna temp: {:>4}, sauna humid: {:>4}", 
+        payload.d1.unwrap(), 
+        payload.d2.unwrap(),
+        payload.d3.unwrap(),
+    );
+    println!("{}", formatted_payload);
 
     let (res_ambient, res_slack) = future::join(
         sauna_monitor.ambient.send(&payload, None),
-        post_slack_message()
+        post_slack_simple_message(formatted_payload)
     ).await;
 
 
@@ -280,7 +284,7 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
     }
 
     match &res_slack{
-        Ok(res) =>  {
+        Ok(_) =>  {
             println!("Slack : OK");
         },
         Err(error) => {
@@ -291,6 +295,12 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
 
 #[tokio::main]
 async fn main(){
+
+    let res_slack = post_slack_start_message().await;
+    match &res_slack{
+        Ok(_) => println!("Slack : OK"),
+        Err(error) => println!("Slack post failed.: {:?}", error),
+    }
 
     println!("rpi-sauna-monitor\nHello, world!");
     if is_rpi() {
