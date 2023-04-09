@@ -6,6 +6,9 @@ use std::fs;
 
 use ambient_rust::{Ambient, AmbientPayload};
 use rppal::i2c::I2c;
+use slack_morphism::prelude::*;
+use rsb_derive::Builder;
+use futures::{future};
 
 mod secrets;
 
@@ -176,7 +179,76 @@ impl DS18B20{
     }
 }
 
-fn run(sauna_monitor : &mut SaunaMonitor){
+
+pub fn config_env_var(name: &str) -> Result<String, String> {
+    std::env::var(name).map_err(|e| format!("{}: {}", name, e))
+}
+
+async fn post_slack_message() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = SlackClient::new(SlackClientHyperConnector::new());
+    let token_value: SlackApiTokenValue = config_env_var("SLACK_TEST_TOKEN")?.into();
+    let token: SlackApiToken = SlackApiToken::new(token_value);
+    let session = client.open_session(&token);
+
+    let message = WelcomeMessageTemplateParams::new("hirosi".into());
+
+    let post_chat_req =
+        SlackApiChatPostMessageRequest::new("#sauna".into(), message.render_template());
+
+    let post_chat_resp = session.chat_post_message(&post_chat_req).await?;
+    //let res = block_on(post_chat_resp);
+    println!("post chat resp: {:#?}", &post_chat_resp);
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct WelcomeMessageTemplateParams {
+    pub user_id: SlackUserId,
+}
+
+impl SlackMessageTemplate for WelcomeMessageTemplateParams {
+    fn render_template(&self) -> SlackMessageContent {
+        SlackMessageContent::new()
+            .with_text(format!("Hey {}", self.user_id.to_slack_format()))
+            .with_blocks(slack_blocks![
+                some_into(SlackHeaderBlock::new(pt!("RPi Sauna Monitor"))),
+                some_into(
+                    SlackSectionBlock::new()
+                        .with_text(md!("Hey {} rpi sauna nomitor started working.", self.user_id.to_slack_format()))
+                )
+                //some_into(SlackDividerBlock::new()),
+                //some_into(SlackDividerBlock::new()),
+                //some_into(SlackContextBlock::new(slack_blocks![
+                //    some(md!("This is an example of block message")),
+                //    some(md!(
+                //        "Current time is: {}",
+                //        fmt_slack_date(
+                //            &Local::now(),
+                //            SlackDateTimeFormats::DatePretty.to_string().as_str(),
+                //            None
+                //        )
+                //    ))
+                //])),
+                //some_into(SlackDividerBlock::new()),
+                //some_into(
+                //    SlackImageBlock::new(
+                //        Url::parse("https://www.gstatic.com/webp/gallery3/2_webp_ll.png").unwrap(),
+                //        "Test Image".into(),
+                //    )
+                //    .with_title("Test Image".into())
+                //),
+                //some_into(SlackActionsBlock::new(slack_blocks![some_into(
+                //    SlackBlockButtonElement::new(
+                //        "simple-message-button".into(),
+                //        pt!("Simple button text")
+                //    )
+                //)]))
+            ])
+    }
+}
+
+async fn run(sauna_monitor : &mut SaunaMonitor) {
     let payload = AmbientPayload {
         //created: Some(Utc::now()), Persing chrono::DataTime is not supported yes.
         created: None,
@@ -192,19 +264,34 @@ fn run(sauna_monitor : &mut SaunaMonitor){
 
     println!("{:?}", payload);
 
-    let response = sauna_monitor.ambient.send(&payload, None);
-    match &response{
+    let (res_ambient, res_slack) = future::join(
+        sauna_monitor.ambient.send(&payload, None),
+        post_slack_message()
+    ).await;
+
+
+    match &res_ambient{
         Ok(res) =>  {
             println!("Http status code : {:?}", res.status());
         },
         Err(error) => {
-            panic!("Http post failled.: {:?}", error);
+            println!("Http post failled.: {:?}", error);
         }
     }
 
+    match &res_slack{
+        Ok(res) =>  {
+            println!("Slack : OK");
+        },
+        Err(error) => {
+            println!("Slack post failed.: {:?}", error);
+        }
+    }
 }
 
-fn main() {
+#[tokio::main]
+async fn main(){
+
     println!("rpi-sauna-monitor\nHello, world!");
     if is_rpi() {
         println!("target is raspberry pi!!!");
@@ -221,8 +308,7 @@ fn main() {
     };
 
     loop {
-        run(&mut sm);
-
+        run(&mut sm).await;
         thread::sleep(sleep_time);
     }
 }
