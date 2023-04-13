@@ -195,9 +195,7 @@ async fn post_slack_start_message() -> Result<(), Box<dyn std::error::Error + Se
     let post_chat_req =
         SlackApiChatPostMessageRequest::new("#sauna".into(), message.render_template());
 
-    let post_chat_resp = session.chat_post_message(&post_chat_req).await?;
-    //let res = block_on(post_chat_resp);
-    println!("post chat resp: {:#?}", &post_chat_resp);
+    session.chat_post_message(&post_chat_req).await?;
 
     Ok(())
 }
@@ -240,9 +238,7 @@ async fn post_slack_simple_message(msg: String) -> Result<(), Box<dyn std::error
     let post_chat_req =
         SlackApiChatPostMessageRequest::new("#sauna".into(), message);
 
-    let post_chat_resp = session.chat_post_message(&post_chat_req).await?;
-    //let res = block_on(post_chat_resp);
-    println!("post chat resp: {:#?}", &post_chat_resp);
+    session.chat_post_message(&post_chat_req).await?;
 
     Ok(())
 }
@@ -261,7 +257,7 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
         d8: None,
     };
 
-    let formatted_payload = format!("water temp: {:>4}, sauna temp: {:>4}, sauna humid: {:>4}", 
+    let formatted_payload = format!("water temp: {:.1}, sauna temp: {:.1}, sauna humid: {:.1}", 
         payload.d1.unwrap(), 
         payload.d2.unwrap(),
         payload.d3.unwrap(),
