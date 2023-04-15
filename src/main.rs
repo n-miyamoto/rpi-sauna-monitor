@@ -6,6 +6,9 @@ use std::fs;
 
 use ambient_rust::{Ambient, AmbientPayload};
 use rppal::i2c::I2c;
+use slack_morphism::prelude::*;
+use rsb_derive::Builder;
+use futures::{future};
 
 mod secrets;
 
@@ -176,7 +179,71 @@ impl DS18B20{
     }
 }
 
-fn run(sauna_monitor : &mut SaunaMonitor){
+
+pub fn config_env_var(name: &str) -> Result<String, String> {
+    std::env::var(name).map_err(|e| format!("{}: {}", name, e))
+}
+
+async fn post_slack_start_message() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = SlackClient::new(SlackClientHyperConnector::new());
+    let token_value: SlackApiTokenValue = secrets::slack::SLACK_TEST_TOKEN.into();
+    let token: SlackApiToken = SlackApiToken::new(token_value);
+    let session = client.open_session(&token);
+
+    let message = WelcomeMessageTemplateParams::new("sauna-monitor".into());
+
+    let post_chat_req =
+        SlackApiChatPostMessageRequest::new("#sauna".into(), message.render_template());
+
+    session.chat_post_message(&post_chat_req).await?;
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct WelcomeMessageTemplateParams {
+    pub user_id: SlackUserId,
+}
+
+impl SlackMessageTemplate for WelcomeMessageTemplateParams {
+    fn render_template(&self) -> SlackMessageContent {
+        SlackMessageContent::new()
+            .with_text(format!("Hey {}", self.user_id.to_slack_format()))
+            .with_blocks(slack_blocks![
+                some_into(SlackHeaderBlock::new(pt!("RPi Sauna Monitor"))),
+                some_into(
+                    SlackSectionBlock::new()
+                        .with_text(md!("Hey {} rpi sauna nomitor started working. url: https://ambidata.io/bd/board.html?id=18138", self.user_id.to_slack_format()))
+                )
+            ])
+    }
+}
+
+async fn post_slack_simple_message(msg: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = SlackClient::new(SlackClientHyperConnector::new());
+    let token_value: SlackApiTokenValue = secrets::slack::SLACK_TEST_TOKEN.into();
+    let token: SlackApiToken = SlackApiToken::new(token_value);
+    let session = client.open_session(&token);
+
+    let id : SlackUserId = "sauna-monitor".into();
+    let message = SlackMessageContent::new()
+            .with_text(format!("Hey {}", id.to_slack_format()))
+            .with_blocks(slack_blocks![
+                some_into(
+                    SlackSectionBlock::new()
+                        .with_text(md!("{}", msg))
+                )
+            ]);
+
+    let post_chat_req =
+        SlackApiChatPostMessageRequest::new("#sauna".into(), message);
+
+    session.chat_post_message(&post_chat_req).await?;
+
+    Ok(())
+}
+
+async fn run(sauna_monitor : &mut SaunaMonitor) {
     let payload = AmbientPayload {
         //created: Some(Utc::now()), Persing chrono::DataTime is not supported yes.
         created: None,
@@ -190,21 +257,57 @@ fn run(sauna_monitor : &mut SaunaMonitor){
         d8: None,
     };
 
-    println!("{:?}", payload);
+    let formatted_payload = format!("water temp: {:.1}, sauna temp: {:.1}, sauna humid: {:.1}", 
+        payload.d1.unwrap(), 
+        payload.d2.unwrap(),
+        payload.d3.unwrap(),
+    );
+    println!("{}", formatted_payload);
 
-    let response = sauna_monitor.ambient.send(&payload, None);
-    match &response{
+    let (res_ambient, res_slack) = future::join(
+        sauna_monitor.ambient.send(&payload, None),
+        post_slack_simple_message(formatted_payload)
+    ).await;
+
+
+    match &res_ambient{
         Ok(res) =>  {
             println!("Http status code : {:?}", res.status());
         },
         Err(error) => {
-            panic!("Http post failled.: {:?}", error);
+            println!("Http post failled.: {:?}", error);
         }
     }
 
+    match &res_slack{
+        Ok(_) =>  {
+            println!("Slack : OK");
+        },
+        Err(error) => {
+            println!("Slack post failed.: {:?}", error);
+        }
+    }
 }
 
-fn main() {
+fn get_interval_ms() -> u64{
+    if cfg!(test) {
+        5_000
+    } else if cfg!(debug_assertions) {
+        5_000
+    } else {
+        60_000
+    }
+}
+
+#[tokio::main]
+async fn main(){
+
+    let res_slack = post_slack_start_message().await;
+    match &res_slack{
+        Ok(_) => println!("Slack : OK"),
+        Err(error) => println!("Slack post failed.: {:?}", error),
+    }
+
     println!("rpi-sauna-monitor\nHello, world!");
     if is_rpi() {
         println!("target is raspberry pi!!!");
@@ -212,7 +315,8 @@ fn main() {
         println!("target is not raspberry pi. send dummy data.");
     }
 
-    let interval_ms = 5_000;
+    let interval_ms = get_interval_ms();
+    println!("Interval = {} [ms]", interval_ms);
     let sleep_time = time::Duration::from_millis(interval_ms);
     let mut sm = SaunaMonitor {
         sht30 : SHT30::init(),
@@ -221,8 +325,7 @@ fn main() {
     };
 
     loop {
-        run(&mut sm);
-
+        run(&mut sm).await;
         thread::sleep(sleep_time);
     }
 }

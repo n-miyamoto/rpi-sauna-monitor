@@ -8,4 +8,9 @@ edition = "2021"
 [dependencies]
 rppal = "0.14.1"
 ambient-rust = { git = "https://github.com/n-miyamoto/ambient-rust" }
-
+slack-morphism = { version = "1.9.0", features = ["hyper"] }
+rsb_derive = "0.5.1"
+chrono = "0.4.24"
+url = "2.3.1"
+futures = "0.3.28"
+tokio = { version = "1", features = ["full"] }
