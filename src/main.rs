@@ -289,6 +289,16 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
     }
 }
 
+fn get_interval_ms() -> u64{
+    if cfg!(test) {
+        5_000
+    } else if cfg!(debug_assertions) {
+        5_000
+    } else {
+        60_000
+    }
+}
+
 #[tokio::main]
 async fn main(){
 
@@ -305,7 +315,8 @@ async fn main(){
         println!("target is not raspberry pi. send dummy data.");
     }
 
-    let interval_ms = 5_000;
+    let interval_ms = get_interval_ms();
+    println!("Interval = {} [ms]", interval_ms);
     let sleep_time = time::Duration::from_millis(interval_ms);
     let mut sm = SaunaMonitor {
         sht30 : SHT30::init(),
