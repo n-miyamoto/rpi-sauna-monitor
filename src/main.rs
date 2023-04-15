@@ -9,6 +9,7 @@ use rppal::i2c::I2c;
 use slack_morphism::prelude::*;
 use rsb_derive::Builder;
 use futures::{future};
+use chrono::{Local, Timelike};
 
 mod secrets;
 
@@ -257,7 +258,9 @@ async fn run(sauna_monitor : &mut SaunaMonitor) {
         d8: None,
     };
 
-    let formatted_payload = format!("water temp: {:.1}, sauna temp: {:.1}, sauna humid: {:.1}", 
+    let formatted_payload = format!("time: {:02}:{:02}, sauna: {:.1}°C, {:.1}%, water: {:.1}°C",
+        Local::now().hour(),
+        Local::now().minute(),
         payload.d1.unwrap(), 
         payload.d2.unwrap(),
         payload.d3.unwrap(),
