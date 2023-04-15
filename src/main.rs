@@ -186,7 +186,7 @@ pub fn config_env_var(name: &str) -> Result<String, String> {
 
 async fn post_slack_start_message() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = SlackClient::new(SlackClientHyperConnector::new());
-    let token_value: SlackApiTokenValue = config_env_var("SLACK_TEST_TOKEN")?.into();
+    let token_value: SlackApiTokenValue = secrets::slack::SLACK_TEST_TOKEN.into();
     let token: SlackApiToken = SlackApiToken::new(token_value);
     let session = client.open_session(&token);
 
@@ -221,7 +221,7 @@ impl SlackMessageTemplate for WelcomeMessageTemplateParams {
 
 async fn post_slack_simple_message(msg: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = SlackClient::new(SlackClientHyperConnector::new());
-    let token_value: SlackApiTokenValue = config_env_var("SLACK_TEST_TOKEN")?.into();
+    let token_value: SlackApiTokenValue = secrets::slack::SLACK_TEST_TOKEN.into();
     let token: SlackApiToken = SlackApiToken::new(token_value);
     let session = client.open_session(&token);
 
