@@ -77,11 +77,7 @@ fn get_interval_ms() -> u64{
 #[tokio::main]
 async fn main(){
 
-    let res_slack = slack::post_slack_start_message(secrets::slack::SLACK_TEST_TOKEN).await;
-    match &res_slack{
-        Ok(_) => println!("Slack : OK"),
-        Err(error) => println!("Slack post failed.: {:?}", error),
-    }
+
 
     println!("rpi-sauna-monitor\nHello, world!");
     if util::is_rpi() {
@@ -90,9 +86,17 @@ async fn main(){
         println!("target is not raspberry pi. send dummy data.");
     }
 
+    //post slack initial message
+    let res_slack = slack::post_slack_start_message(secrets::slack::SLACK_TEST_TOKEN).await;
+    match &res_slack{
+        Ok(_) => println!("Slack : OK"),
+        Err(error) => println!("Slack post failed.: {:?}", error),
+    }
+
     let interval_ms = get_interval_ms();
     println!("Interval = {} [ms]", interval_ms);
     let sleep_time = time::Duration::from_millis(interval_ms);
+
     let mut sm = SaunaMonitor {
         sht30 : sht30::SHT30::init(),
         ds18b : ds18b20::DS18B20::init().unwrap(),
